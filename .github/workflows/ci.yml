@@ -13,8 +13,8 @@ jobs:
       postgres:
         image: postgres:latest
         env:
-          POSTGRES_USER: user
-          POSTGRES_PASSWORD: password
+          POSTGRES_USER: todo_user
+          POSTGRES_PASSWORD: todo_password
           POSTGRES_DB: test_db
         ports:
           - 5432:5432
