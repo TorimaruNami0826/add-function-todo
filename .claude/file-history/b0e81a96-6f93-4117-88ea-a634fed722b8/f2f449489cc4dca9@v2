@@ -1,0 +1,76 @@
+const { Router } = require('express');
+
+const router = Router();
+
+// インメモリストア（サーバ再起動でリセットされる）
+let todos = [];
+let nextId = 1;
+
+// GET /todos — 全件取得
+router.get('/', (req, res) => {
+  res.json(todos);
+});
+
+// POST /todos — 新規作成
+// body: { title: string }
+router.post('/', (req, res) => {
+  const { title } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    return res.status(400).json({ error: 'title は必須です' });
+  }
+
+  const todo = {
+    id: nextId++,
+    title: title.trim(),
+    completed: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  todos.push(todo);
+  res.status(201).json(todo);
+});
+
+// PATCH /todos/:id — 部分更新（title / completed）
+// body: { title?: string, completed?: boolean }
+router.patch('/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const todo = todos.find((t) => t.id === id);
+
+  if (!todo) {
+    return res.status(404).json({ error: '指定された TODO が見つかりません' });
+  }
+
+  const { title, completed } = req.body;
+
+  if (title !== undefined) {
+    if (typeof title !== 'string' || title.trim() === '') {
+      return res.status(400).json({ error: 'title は空にできません' });
+    }
+    todo.title = title.trim();
+  }
+
+  if (completed !== undefined) {
+    if (typeof completed !== 'boolean') {
+      return res.status(400).json({ error: 'completed は boolean である必要があります' });
+    }
+    todo.completed = completed;
+  }
+
+  res.json(todo);
+});
+
+// DELETE /todos/:id — 削除
+router.delete('/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const index = todos.findIndex((t) => t.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: '指定された TODO が見つかりません' });
+  }
+
+  todos.splice(index, 1);
+  res.status(204).end();
+});
+
+module.exports = router;

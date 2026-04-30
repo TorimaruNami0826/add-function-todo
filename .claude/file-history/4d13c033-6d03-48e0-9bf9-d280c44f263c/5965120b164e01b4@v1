@@ -1,0 +1,331 @@
+const express = require('express');
+const request = require('supertest');
+
+// todos.js はインメモリ状態を持つため、テストごとにモジュールを再ロードして状態をリセットする
+// 外部依存（DB など）が追加された場合は jest.mock('../../src/db/pool') でここにモックを追加する
+let app;
+
+beforeEach(() => {
+  jest.resetModules();
+  const todosRouter = require('../../../src/routes/todos');
+  app = express();
+  app.use(express.json());
+  app.use('/todos', todosRouter);
+});
+
+// ─────────────────────────────────────────
+// GET /todos
+// ─────────────────────────────────────────
+describe('GET /todos', () => {
+  test('初期状態は空配列を返す', async () => {
+    // Arrange — beforeEach でリセット済み
+
+    // Act
+    const res = await request(app).get('/todos');
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  test('登録済みの TODO を全件返す', async () => {
+    // Arrange
+    await request(app).post('/todos').send({ title: 'タスク1' });
+    await request(app).post('/todos').send({ title: 'タスク2' });
+
+    // Act
+    const res = await request(app).get('/todos');
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].title).toBe('タスク1');
+    expect(res.body[1].title).toBe('タスク2');
+  });
+});
+
+// ─────────────────────────────────────────
+// POST /todos
+// ─────────────────────────────────────────
+describe('POST /todos', () => {
+  test('有効な title で TODO を作成し 201 とオブジェクトを返す', async () => {
+    // Arrange
+    const payload = { title: '買い物' };
+
+    // Act
+    const res = await request(app).post('/todos').send(payload);
+
+    // Assert
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      id: 1,
+      title: '買い物',
+      completed: false,
+    });
+    expect(typeof res.body.createdAt).toBe('string');
+  });
+
+  test('title の前後の空白はトリムされる', async () => {
+    // Arrange
+    const payload = { title: '  タスク  ' };
+
+    // Act
+    const res = await request(app).post('/todos').send(payload);
+
+    // Assert
+    expect(res.status).toBe(201);
+    expect(res.body.title).toBe('タスク');
+  });
+
+  test('id は連番で採番される', async () => {
+    // Arrange / Act
+    const r1 = await request(app).post('/todos').send({ title: '1つ目' });
+    const r2 = await request(app).post('/todos').send({ title: '2つ目' });
+    const r3 = await request(app).post('/todos').send({ title: '3つ目' });
+
+    // Assert
+    expect(r1.body.id).toBe(1);
+    expect(r2.body.id).toBe(2);
+    expect(r3.body.id).toBe(3);
+  });
+
+  test('title が未指定の場合 400 を返す', async () => {
+    // Arrange
+    const payload = {};
+
+    // Act
+    const res = await request(app).post('/todos').send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('title が空文字の場合 400 を返す', async () => {
+    // Arrange
+    const payload = { title: '' };
+
+    // Act
+    const res = await request(app).post('/todos').send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('title が空白のみの場合 400 を返す', async () => {
+    // Arrange
+    const payload = { title: '   ' };
+
+    // Act
+    const res = await request(app).post('/todos').send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('title が文字列以外（数値）の場合 400 を返す', async () => {
+    // Arrange
+    const payload = { title: 123 };
+
+    // Act
+    const res = await request(app).post('/todos').send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+});
+
+// ─────────────────────────────────────────
+// PATCH /todos/:id
+// ─────────────────────────────────────────
+describe('PATCH /todos/:id', () => {
+  let todoId;
+
+  beforeEach(async () => {
+    const res = await request(app).post('/todos').send({ title: '元のタスク' });
+    todoId = res.body.id;
+  });
+
+  test('title を更新できる', async () => {
+    // Arrange
+    const payload = { title: '更新後タスク' };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe('更新後タスク');
+    expect(res.body.id).toBe(todoId);
+  });
+
+  test('completed を true に更新できる', async () => {
+    // Arrange
+    const payload = { completed: true };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body.completed).toBe(true);
+  });
+
+  test('title と completed を同時に更新できる', async () => {
+    // Arrange
+    const payload = { title: '同時更新', completed: true };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ title: '同時更新', completed: true });
+  });
+
+  test('ボディが空でも 200 を返し値は変わらない', async () => {
+    // Arrange — 更新フィールドなし
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send({});
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe('元のタスク');
+    expect(res.body.completed).toBe(false);
+  });
+
+  test('title の前後の空白はトリムされる', async () => {
+    // Arrange
+    const payload = { title: '  trimされる  ' };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe('trimされる');
+  });
+
+  test('存在しない id の場合 404 を返す', async () => {
+    // Arrange
+    const payload = { title: '幽霊タスク' };
+
+    // Act
+    const res = await request(app).patch('/todos/9999').send(payload);
+
+    // Assert
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('title が空文字の場合 400 を返す', async () => {
+    // Arrange
+    const payload = { title: '' };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('title が空白のみの場合 400 を返す', async () => {
+    // Arrange
+    const payload = { title: '   ' };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('completed が boolean 以外（文字列）の場合 400 を返す', async () => {
+    // Arrange
+    const payload = { completed: 'true' };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('completed が boolean 以外（数値）の場合 400 を返す', async () => {
+    // Arrange
+    const payload = { completed: 1 };
+
+    // Act
+    const res = await request(app).patch(`/todos/${todoId}`).send(payload);
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+});
+
+// ─────────────────────────────────────────
+// DELETE /todos/:id
+// ─────────────────────────────────────────
+describe('DELETE /todos/:id', () => {
+  let todoId;
+
+  beforeEach(async () => {
+    const res = await request(app).post('/todos').send({ title: '削除対象' });
+    todoId = res.body.id;
+  });
+
+  test('存在する id を削除すると 204 を返す', async () => {
+    // Arrange — todoId from beforeEach
+
+    // Act
+    const res = await request(app).delete(`/todos/${todoId}`);
+
+    // Assert
+    expect(res.status).toBe(204);
+    expect(res.body).toEqual({});
+  });
+
+  test('削除後は GET の件数が 1 減る', async () => {
+    // Arrange
+    await request(app).post('/todos').send({ title: '残るタスク' });
+
+    // Act
+    await request(app).delete(`/todos/${todoId}`);
+    const res = await request(app).get('/todos');
+
+    // Assert
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].title).toBe('残るタスク');
+  });
+
+  test('存在しない id の場合 404 を返す', async () => {
+    // Arrange — 存在しない id
+
+    // Act
+    const res = await request(app).delete('/todos/9999');
+
+    // Assert
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('同じ id を 2 回削除すると 2 回目は 404 を返す', async () => {
+    // Arrange
+    await request(app).delete(`/todos/${todoId}`);
+
+    // Act
+    const res = await request(app).delete(`/todos/${todoId}`);
+
+    // Assert
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty('error');
+  });
+});

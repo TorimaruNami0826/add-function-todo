@@ -1,0 +1,20 @@
+const express = require('express');
+const todosRouter = require('./routes/todos');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// JSON リクエストボディを解析する
+app.use(express.json());
+
+// /todos エンドポイントにルーターを紐付ける
+app.use('/todos', todosRouter);
+
+// 存在しないパスへのフォールバック
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found' });
+});
+
+app.listen(PORT, () => {
+  console.log(`サーバが起動しました → http://localhost:${PORT}`);
+});

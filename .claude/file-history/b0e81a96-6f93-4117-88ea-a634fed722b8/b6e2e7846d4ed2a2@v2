@@ -1,0 +1,38 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## プロジェクト概要
+
+Node.js + Express による TODO 管理アプリ。バックエンド API とシングルページの HTML フロントエンドで構成される。データは現状インメモリで管理（サーバ再起動でリセット）。将来的に `src/db/pool.js` を追加して DB 永続化を想定した構成になっている。
+
+## コマンド
+
+```bash
+npm install       # 初回セットアップ
+npm start         # 本番起動（node src/index.js）
+npm run dev       # 開発起動（nodemon による自動リロード）
+```
+
+ポートのデフォルトは `3000`。変更は `PORT=8080 npm start`。
+
+## アーキテクチャ
+
+```
+src/index.js          エントリポイント。express.static で public/ を配信し、/todos を todosRouter に委譲する
+src/routes/todos.js   /todos の CRUD ルーター。インメモリ配列 todos[] と連番 nextId で状態を管理
+src/db/pool.js        （未作成）DB 移行時に追加する接続プールモジュール
+public/index.html     フロントエンド。fetch API で /todos エンドポイントを直接呼び出す（ビルド不要）
+```
+
+リクエストの流れ：ブラウザ → `GET /` → `public/index.html` → fetch `/todos/*` → `src/routes/todos.js`
+
+フロントエンドは UI ライブラリ・バンドラを使わず、バニラ JS で DOM を直接操作する。
+
+## コーディング規約
+
+- **コメントは日本語**で記述する
+- **エラーハンドリングは必ず実装する**
+  - バックエンド：バリデーション失敗は `400`、リソース未存在は `404` を `{ error: "..." }` 形式で返す
+  - フロントエンド：fetch の `!res.ok` を必ず確認し、`#error-msg` 要素にメッセージを表示する。操作失敗時は UI を元の状態に戻す（例：チェックボックスを反転して戻す）
+- DB 永続化を追加するときは `src/db/pool.js` にプールを集約し、ルーターから import して使う
