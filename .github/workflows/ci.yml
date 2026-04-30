@@ -14,7 +14,7 @@ jobs:
         image: postgres:latest
         env:
           POSTGRES_USER: todo_user
-          POSTGRES_PASSWORD: todo_password
+          POSTGRES_PASSWORD: todo_password_prod
           POSTGRES_DB: test_db
         ports:
           - 5432:5432
@@ -39,13 +39,11 @@ jobs:
       - name: Lint を実行
         run: npm run lint --if-present
 
-      - name: テストを実行（カバレッジ計測付き）
-        run: npm run test:ci
+- name: テストを実行（カバレッジ計測付き）
         env:
-          # 🌟 ここが文字列として正しく認識されるように整えたよ！
-          DATABASE_URL: postgres://todo_user:todo_password@localhost:5432/test_db
+          DATABASE_URL: "postgres://todo_user:todo_password@localhost:5432/test_db"
           NODE_ENV: test
-
+        run: npm run test:ci
       - name: カバレッジレポートをアーティファクトとして保存
         uses: actions/upload-artifact@v4
         with:
