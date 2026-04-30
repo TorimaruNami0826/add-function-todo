@@ -18,7 +18,6 @@ jobs:
           POSTGRES_DB: test_db
         ports:
           - 5432:5432
-        # DBが準備できるまで待つ設定
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -43,7 +42,8 @@ jobs:
       - name: テストを実行（カバレッジ計測付き）
         run: npm run test:ci
         env:
-          DATABASE_URL: 'postgres://todo_user:todo_password@localhost:5432/test_db'
+          # 🌟 ここが文字列として正しく認識されるように整えたよ！
+          DATABASE_URL: postgres://todo_user:todo_password@localhost:5432/test_db
           NODE_ENV: test
 
       - name: カバレッジレポートをアーティファクトとして保存
