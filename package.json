@@ -1,0 +1,25 @@
+{
+  "name": "todo-backend",
+  "version": "1.0.0",
+  "description": "Node.js + Express によるシンプルな TODO バックエンド",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --coverage --ci --forceExit"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.18.2",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.2.2"
+  }
+}

@@ -1,0 +1,17 @@
+﻿# 依存パッケージ
+node_modules/
+
+# 環境変数（DB認証情報を含むため必ずコミット除外）
+.env
+.env.local
+
+# カバレッジレポート
+coverage/
+
+# ログ
+*.log
+npm-debug.log*
+
+# OS 生成ファイル
+.DS_Store
+Thumbs.db

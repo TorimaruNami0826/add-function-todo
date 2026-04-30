@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TODO アプリ</title>
+  <style>
+    /* ===== リセット & ベース ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      padding: 48px 16px;
+      min-height: 100vh;
+    }
+
+    /* ===== カードコンテナ ===== */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.08);
+      padding: 32px;
+      width: 100%;
+      max-width: 520px;
+      height: fit-content;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 24px;
+      text-align: center;
+      letter-spacing: .04em;
+    }
+
+    /* ===== 入力フォーム ===== */
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    #new-title {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    #new-title:focus { border-color: #6366f1; }
+
+    #add-btn {
+      padding: 10px 18px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+
+    #add-btn:hover { background: #4f46e5; }
+    #add-btn:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    /* ===== エラーメッセージ ===== */
+    #error-msg {
+      display: none;
+      color: #dc2626;
+      font-size: .875rem;
+      margin-bottom: 16px;
+      padding: 8px 12px;
+      background: #fef2f2;
+      border-radius: 6px;
+    }
+
+    /* ===== TODO リスト ===== */
+    #todo-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      transition: border-color .2s, opacity .2s;
+    }
+
+    .todo-item.completed {
+      opacity: .55;
+      border-color: #d1d5db;
+    }
+
+    /* 完了チェックボックス */
+    .todo-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #6366f1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* タイトル */
+    .todo-title {
+      flex: 1;
+      font-size: 1rem;
+      color: #111827;
+      word-break: break-all;
+    }
+
+    .todo-item.completed .todo-title {
+      text-decoration: line-through;
+      color: #9ca3af;
+    }
+
+    /* 削除ボタン */
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .2s, background .2s;
+      line-height: 1;
+    }
+
+    .delete-btn:hover { color: #dc2626; background: #fef2f2; }
+
+    /* ===== 空状態 ===== */
+    #empty-msg {
+      text-align: center;
+      color: #9ca3af;
+      font-size: .95rem;
+      padding: 24px 0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>📝 TODO リスト</h1>
+
+  <!-- 新規追加フォーム -->
+  <div class="input-row">
+    <input id="new-title" type="text" placeholder="やることを入力…" maxlength="200" />
+    <button id="add-btn">追加</button>
+  </div>
+
+  <!-- エラーメッセージ表示エリア -->
+  <div id="error-msg"></div>
+
+  <!-- TODO 一覧 -->
+  <ul id="todo-list"></ul>
+  <p id="empty-msg" style="display:none;">TODO がありません。追加してみましょう！</p>
+</div>
+
+<script>
+  // ===== DOM 参照 =====
+  const listEl    = document.getElementById('todo-list');
+  const inputEl   = document.getElementById('new-title');
+  const addBtn    = document.getElementById('add-btn');
+  const errorEl   = document.getElementById('error-msg');
+  const emptyEl   = document.getElementById('empty-msg');
+
+  // ===== エラー表示ヘルパー =====
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+  }
+  function clearError() {
+    errorEl.style.display = 'none';
+  }
+
+  // ===== 空状態の切り替え =====
+  function updateEmptyState() {
+    emptyEl.style.display = listEl.children.length === 0 ? 'block' : 'none';
+  }
+
+  // ===== 全件取得して画面に描画する =====
+  async function fetchAndRender() {
+    const res = await fetch('/todos');
+    if (!res.ok) { showError('TODO の取得に失敗しました'); return; }
+    const todos = await res.json();
+
+    listEl.innerHTML = '';
+    todos.forEach(renderItem);
+    updateEmptyState();
+  }
+
+  // ===== TODO 1件を <li> として追加する =====
+  function renderItem(todo) {
+    const li = document.createElement('li');
+    li.className = 'todo-item' + (todo.completed ? ' completed' : '');
+    li.dataset.id = todo.id;
+
+    // 完了チェックボックス
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = todo.completed;
+    checkbox.setAttribute('aria-label', '完了にする');
+    checkbox.addEventListener('change', () => toggleComplete(todo.id, checkbox.checked, li));
+
+    // タイトル
+    const span = document.createElement('span');
+    span.className = 'todo-title';
+    span.textContent = todo.title;
+
+    // 削除ボタン
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-btn';
+    delBtn.textContent = '✕';
+    delBtn.setAttribute('aria-label', '削除');
+    delBtn.addEventListener('click', () => deleteTodo(todo.id, li));
+
+    li.append(checkbox, span, delBtn);
+    listEl.appendChild(li);
+  }
+
+  // ===== 新規 TODO を追加する =====
+  async function addTodo() {
+    const title = inputEl.value.trim();
+    if (!title) { showError('タイトルを入力してください'); return; }
+    clearError();
+
+    addBtn.disabled = true;
+    try {
+      const res = await fetch('/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        showError(body.error ?? '追加に失敗しました');
+        return;
+      }
+
+      const todo = await res.json();
+      renderItem(todo);
+      inputEl.value = '';
+      updateEmptyState();
+    } finally {
+      addBtn.disabled = false;
+    }
+  }
+
+  // ===== 完了状態を切り替える =====
+  async function toggleComplete(id, completed, liEl) {
+    const res = await fetch(`/todos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed }),
+    });
+
+    if (!res.ok) {
+      showError('更新に失敗しました');
+      // チェックを元に戻す
+      liEl.querySelector('input[type="checkbox"]').checked = !completed;
+      return;
+    }
+
+    // 完了クラスを付け外しして見た目を更新
+    liEl.classList.toggle('completed', completed);
+  }
+
+  // ===== TODO を削除する =====
+  async function deleteTodo(id, liEl) {
+    const res = await fetch(`/todos/${id}`, { method: 'DELETE' });
+
+    if (!res.ok) { showError('削除に失敗しました'); return; }
+
+    liEl.remove();
+    updateEmptyState();
+  }
+
+  // ===== イベント登録 =====
+
+  // 追加ボタン クリック
+  addBtn.addEventListener('click', addTodo);
+
+  // Enter キーでも追加できるようにする
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTodo();
+  });
+
+  // 入力開始でエラーを消す
+  inputEl.addEventListener('input', clearError);
+
+  // ===== 初期表示 =====
+  fetchAndRender();
+</script>
+
+</body>
+</html>
