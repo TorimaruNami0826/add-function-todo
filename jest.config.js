@@ -7,8 +7,8 @@ const config = {
   ],
   projects: [
     {
-      displayName: 'backend123',
-      testEnvironment: 'mode',
+      displayName: 'backend',
+      testEnvironment: 'node',
       testMatch: ['<rootDir>/tests/backend/**/*.test.js', '<rootDir>/tests/routes/**/*.test.js'],
     },
     {
