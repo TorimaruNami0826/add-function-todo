@@ -3,25 +3,25 @@ name: EC2 Deploy Final
 
 
 on:
-
   push:
-
     branches: [ main ]
 
 
 jobs:
-
   deploy:
-
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout
-
         uses: actions/checkout@v4
 
-      - name: Run Deploy Script
-
-        run: echo "CI/CD Success!"
-
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd ~/app
+            git pull origin main
+            # ここに再起動のコマンドがあれば追加
+            echo "Deploy Complete! "
