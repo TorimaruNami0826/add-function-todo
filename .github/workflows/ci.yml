@@ -1,10 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ main ]
+  workflow_call:
 
 jobs:
   test:
@@ -20,7 +17,6 @@ jobs:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
-
     steps:
       - name: コードをチェックアウト
         uses: actions/checkout@v4
@@ -34,7 +30,17 @@ jobs:
       - name: 依存関係をインストール
         run: npm ci
 
-      - name: テストを実行（環境変数を渡す！）
+      - name: DBのマイグレーションを実行
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: password
+          DB_NAME: todo_db
+        run: npm run migrate --if-present
+
+
+      - name: テストを実行
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
@@ -43,7 +49,7 @@ jobs:
           DB_NAME: todo_db
         run: npm run test:ci
 
-      - name: カバレッジレポートをアーティファクトとして保存
+      - name: カバレッジレポートを保存
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
