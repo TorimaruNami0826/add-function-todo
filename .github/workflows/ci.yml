@@ -7,7 +7,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # PostgreSQL を起動
     services:
       postgres:
         image: postgres:15
@@ -23,6 +22,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+
     steps:
       - name: コードをチェックアウト
         uses: actions/checkout@v4
@@ -36,10 +36,22 @@ jobs:
       - name: 依存関係をインストール
         run: npm ci
 
+      - name: テーブルを作成（マイグレーション）
+        env:
+          PGPASSWORD: password
+        run: |
+          # アプリが必要なテーブルを強制的に作る
+          psql -h localhost -U user -d todo_db -c "
+            CREATE TABLE IF NOT EXISTS todos (
+              id SERIAL PRIMARY KEY,
+              title TEXT NOT NULL,
+              completed BOOLEAN DEFAULT FALSE,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );"
+
 
       - name: テストを実行
         env:
-          # PostgreSQL 用の環境変数に変更！
           DB_HOST: localhost
           DB_PORT: 5432
           DB_USER: user
