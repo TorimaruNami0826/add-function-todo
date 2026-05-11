@@ -22,10 +22,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-
     steps:
       - name: コードをチェックアウト
         uses: actions/checkout@v4
+
 
       - name: Node.js をセットアップ
         uses: actions/setup-node@v4
@@ -36,19 +36,19 @@ jobs:
       - name: 依存関係をインストール
         run: npm ci
 
-      - name: テーブルを作成（マイグレーション）
+      - name: DBの準備（テーブル作成 ＋ ダミーデータ投入）
         env:
           PGPASSWORD: password
         run: |
-          # アプリが必要なテーブルを強制的に作る
           psql -h localhost -U user -d todo_db -c "
             CREATE TABLE IF NOT EXISTS todos (
               id SERIAL PRIMARY KEY,
               title TEXT NOT NULL,
               completed BOOLEAN DEFAULT FALSE,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );"
-
+            );
+            INSERT INTO todos (title, completed) VALUES ('Test Task from CI', false);
+          "
 
       - name: テストを実行
         env:
