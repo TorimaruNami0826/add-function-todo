@@ -1,12 +1,13 @@
 
-name: EC2 Deploy
+name: EC2 Deploy Final
+
 
 on:
-
 
   push:
 
     branches: [ main ]
+
 
 jobs:
 
@@ -22,4 +23,5 @@ jobs:
 
       - name: Run Deploy Script
 
-        run: echo "GitHub Actions is starting!
+        run: echo "CI/CD Success!"
+
