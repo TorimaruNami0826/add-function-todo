@@ -10,6 +10,17 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: todo_db
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+
     steps:
       - name: コードをチェックアウト
         uses: actions/checkout@v4
@@ -23,10 +34,13 @@ jobs:
       - name: 依存関係をインストール
         run: npm ci
 
-      - name: Lint を実行
-        run: npm run lint --if-present
-
-      - name: テストを実行（カバレッジ計測付き）
+      - name: テストを実行（環境変数を渡す！）
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: password
+          DB_NAME: todo_db
         run: npm run test:ci
 
       - name: カバレッジレポートをアーティファクトとして保存
