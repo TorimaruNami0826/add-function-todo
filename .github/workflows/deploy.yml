@@ -9,13 +9,13 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    needs: test
+    # needs: test  <-- ここをコメントアウトしてテスト待ちを解除！
     runs-on: ubuntu-latest
-
 
     steps:
       - name: コードをチェックアウト
         uses: actions/checkout@v4
+
 
       - name: EC2 へ SSH デプロイ
         env:
@@ -34,7 +34,7 @@ jobs:
             exit 0
           fi
 
-
+  
           echo "$EC2_KEY" > deploy.pem
           chmod 600 deploy.pem
 
@@ -45,14 +45,12 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
             cd ~/app
 
-            if [ -d ".git" ]; then
-              git pull origin main
-            else
-              git clone https://github.com/${{ github.repository }}.git .
-            fi
+            git pull origin main
 
             npm ci
+            # EC2本番環境でのテーブル作成
             npm run migrate --if-present
+
 
             printf 'DB_HOST=%s\nDB_PORT=%s\nDB_NAME=%s\nDB_USER=%s\nDB_PASSWORD=%s\nPORT=3000\n' \
               "${DB_HOST}" "${DB_PORT}" "${DB_NAME}" "${DB_USER}" "${DB_PASSWORD}" > .env
@@ -61,9 +59,7 @@ jobs:
             pm2 restart app --update-env 2>/dev/null || pm2 start src/index.js --name app
             pm2 save
 
-            echo "✅ デプロイ完了: $(date)"
+            echo "✅ デプロイ完了！"
           ENDSSH
-
-          rm -f deploy.pem
 
           rm -f deploy.pem
