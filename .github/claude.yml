@@ -1,7 +1,0 @@
- # .github/claude.yml
-reviews:
-auto_review: false       # PR 作成時の自動レビューを無効化
-request_changes: false   # 変更要求を自動で行わない
-approve: false           # 自動承認を行わない
-
-

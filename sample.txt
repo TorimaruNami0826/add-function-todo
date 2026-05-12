@@ -1,1 +1,5 @@
 sample
+echo "CI/CD test at $(date)" >> sample.txt
+git add sample.txt
+git commit -m "test: CI/CD パイプラインの動作確認"
+git push origin main
