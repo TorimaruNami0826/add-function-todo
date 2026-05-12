@@ -40,8 +40,14 @@
     /* ===== 入力フォーム ===== */
     .input-row {
       display: flex;
-      gap: 8px;
+      flex-direction: column; /* 複数行に対応 */
+      gap: 12px;
       margin-bottom: 24px;
+    }
+
+    .input-controls {
+      display: flex;
+      gap: 8px;
     }
 
     #new-title {
@@ -54,7 +60,16 @@
       transition: border-color .2s;
     }
 
-    #new-title:focus { border-color: #6366f1; }
+    #new-priority {
+      padding: 10px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      background-color: #fff;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    #new-title:focus, #new-priority:focus { border-color: #6366f1; }
 
     #add-btn {
       padding: 10px 18px;
@@ -123,6 +138,16 @@
       word-break: break-all;
     }
 
+    /* 優先度ラベル */
+    .priority-badge {
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #f3f4f6;
+      color: #6b7280;
+      font-weight: 600;
+    }
+
     .todo-item.completed .todo-title {
       text-decoration: line-through;
       color: #9ca3af;
@@ -159,7 +184,14 @@
 
   <!-- 新規追加フォーム -->
   <div class="input-row">
-    <input id="new-title" type="text" placeholder="やることを入力…" maxlength="200" />
+    <div class="input-controls">
+      <input id="new-title" type="text" placeholder="やることを入力…" maxlength="200" />
+      <select id="new-priority">
+        <option value="0">優先度: 低</option>
+        <option value="1">優先度: 中</option>
+        <option value="2">優先度: 高</option>
+      </select>
+    </div>
     <button id="add-btn">追加</button>
   </div>
 
@@ -173,11 +205,12 @@
 
 <script>
   // ===== DOM 参照 =====
-  const listEl    = document.getElementById('todo-list');
-  const inputEl   = document.getElementById('new-title');
-  const addBtn    = document.getElementById('add-btn');
-  const errorEl   = document.getElementById('error-msg');
-  const emptyEl   = document.getElementById('empty-msg');
+  const listEl     = document.getElementById('todo-list');
+  const inputEl    = document.getElementById('new-title');
+  const priorityEl = document.getElementById('new-priority'); // 追加
+  const addBtn     = document.getElementById('add-btn');
+  const errorEl    = document.getElementById('error-msg');
+  const emptyEl    = document.getElementById('empty-msg');
 
   // ===== エラー表示ヘルパー =====
   function showError(msg) {
@@ -222,6 +255,12 @@
     span.className = 'todo-title';
     span.textContent = todo.title;
 
+    // 優先度ラベル表示（追加）
+    const pBadge = document.createElement('span');
+    pBadge.className = 'priority-badge';
+    const pMap = { 0: '低', 1: '中', 2: '高' };
+    pBadge.textContent = pMap[todo.priority] || '低';
+
     // 削除ボタン
     const delBtn = document.createElement('button');
     delBtn.className = 'delete-btn';
@@ -229,13 +268,15 @@
     delBtn.setAttribute('aria-label', '削除');
     delBtn.addEventListener('click', () => deleteTodo(todo.id, li));
 
-    li.append(checkbox, span, delBtn);
+    li.append(checkbox, span, pBadge, delBtn); // pBadge を追加
     listEl.appendChild(li);
   }
 
   // ===== 新規 TODO を追加する =====
   async function addTodo() {
     const title = inputEl.value.trim();
+    const priority = parseInt(priorityEl.value, 10); // 優先度を取得
+
     if (!title) { showError('タイトルを入力してください'); return; }
     clearError();
 
@@ -244,7 +285,7 @@
       const res = await fetch('/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, priority }), // priority を含める
       });
 
       if (!res.ok) {
@@ -256,6 +297,7 @@
       const todo = await res.json();
       renderItem(todo);
       inputEl.value = '';
+      priorityEl.value = "0"; // リセット
       updateEmptyState();
     } finally {
       addBtn.disabled = false;
@@ -272,36 +314,25 @@
 
     if (!res.ok) {
       showError('更新に失敗しました');
-      // チェックを元に戻す
       liEl.querySelector('input[type="checkbox"]').checked = !completed;
       return;
     }
-
-    // 完了クラスを付け外しして見た目を更新
     liEl.classList.toggle('completed', completed);
   }
 
   // ===== TODO を削除する =====
   async function deleteTodo(id, liEl) {
     const res = await fetch(`/todos/${id}`, { method: 'DELETE' });
-
     if (!res.ok) { showError('削除に失敗しました'); return; }
-
     liEl.remove();
     updateEmptyState();
   }
 
   // ===== イベント登録 =====
-
-  // 追加ボタン クリック
   addBtn.addEventListener('click', addTodo);
-
-  // Enter キーでも追加できるようにする
   inputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') addTodo();
   });
-
-  // 入力開始でエラーを消す
   inputEl.addEventListener('input', clearError);
 
   // ===== 初期表示 =====

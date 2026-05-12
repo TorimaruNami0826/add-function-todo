@@ -3,14 +3,14 @@ const pool = require('../db/pool');
 
 const router = Router();
 
-// GET /todos — 全件取得（id 昇順）。?completed=true/false でフィルタ可
+// GET /todos — 全件取得（id 昇順）
 router.get('/', async (req, res) => {
   try {
-    let text = 'SELECT id, title, completed, created_at, updated_at FROM todos';
+    // priority を取得対象に追加
+    let text = 'SELECT id, title, completed, priority, created_at, updated_at FROM todos';
     const values = [];
 
     if (req.query.completed !== undefined) {
-      // 文字列 'true'/'false' を真偽値に変換してパラメータ化クエリに渡す
       values.push(req.query.completed === 'true');
       text += ' WHERE completed = $1';
     }
@@ -34,7 +34,7 @@ router.get('/:id', async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      'SELECT id, title, completed, created_at, updated_at FROM todos WHERE id = $1',
+      'SELECT id, title, completed, priority, created_at, updated_at FROM todos WHERE id = $1',
       [id]
     );
 
@@ -50,20 +50,25 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /todos — 新規作成
-// リクエストボディ: { title: 文字列 }
 router.post('/', async (req, res) => {
-  const { title } = req.body;
+  const { title, priority } = req.body;
 
   if (!title || typeof title !== 'string' || title.trim() === '') {
     return res.status(400).json({ error: 'title は必須です' });
   }
 
+  // priority のバリデーション（数値であること）
+  const taskPriority = priority !== undefined ? Number(priority) : 0;
+  if (isNaN(taskPriority)) {
+    return res.status(400).json({ error: 'priority は数値である必要があります' });
+  }
+
   try {
     const { rows } = await pool.query(
-      `INSERT INTO todos (title)
-       VALUES ($1)
-       RETURNING id, title, completed, created_at, updated_at`,
-      [title.trim()]
+      `INSERT INTO todos (title, priority)
+       VALUES ($1, $2)
+       RETURNING id, title, completed, priority, created_at, updated_at`,
+      [title.trim(), taskPriority]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -72,31 +77,29 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PATCH /todos/:id — 部分更新（title / completed）
-// リクエストボディ: { title?: 文字列, completed?: 真偽値 }
+// PATCH /todos/:id — 部分更新
 router.patch('/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: '無効な ID です' });
   }
 
-  const { title, completed } = req.body;
+  const { title, completed, priority } = req.body;
 
-  if (title !== undefined) {
-    if (typeof title !== 'string' || title.trim() === '') {
-      return res.status(400).json({ error: 'title は空にできません' });
-    }
+  // バリデーション
+  if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
+    return res.status(400).json({ error: 'title は空にできません' });
   }
-  if (completed !== undefined) {
-    if (typeof completed !== 'boolean') {
-      return res.status(400).json({ error: 'completed は boolean である必要があります' });
-    }
+  if (completed !== undefined && typeof completed !== 'boolean') {
+    return res.status(400).json({ error: 'completed は boolean である必要があります' });
   }
-  if (title === undefined && completed === undefined) {
+  if (priority !== undefined && isNaN(Number(priority))) {
+    return res.status(400).json({ error: 'priority は数値である必要があります' });
+  }
+  if (title === undefined && completed === undefined && priority === undefined) {
     return res.status(400).json({ error: '更新するフィールドがありません' });
   }
 
-  // 動的に SET 句を組み立てる（updated_at は常に NOW() で自動更新）
   const fields = [];
   const values = [];
   let idx = 1;
@@ -109,6 +112,10 @@ router.patch('/:id', async (req, res) => {
     fields.push(`completed = $${idx++}`);
     values.push(completed);
   }
+  if (priority !== undefined) {
+    fields.push(`priority = $${idx++}`);
+    values.push(Number(priority));
+  }
   fields.push('updated_at = NOW()');
   values.push(id);
 
@@ -117,7 +124,7 @@ router.patch('/:id', async (req, res) => {
       `UPDATE todos
        SET ${fields.join(', ')}
        WHERE id = $${idx}
-       RETURNING id, title, completed, created_at, updated_at`,
+       RETURNING id, title, completed, priority, created_at, updated_at`,
       values
     );
 
