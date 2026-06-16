@@ -40,7 +40,7 @@
     /* ===== 入力フォーム ===== */
     .input-row {
       display: flex;
-      flex-direction: column; /* 複数行に対応 */
+      flex-direction: column;
       gap: 12px;
       margin-bottom: 24px;
     }
@@ -69,7 +69,7 @@
       cursor: pointer;
     }
 
-    #new-title:focus, #new-priority:focus { border-color: #6366f1; }
+    #new-title:focus, #new-priority:focus { border-color: #6366f1; outline: none; }
 
     #add-btn {
       padding: 10px 18px;
@@ -97,6 +97,31 @@
       background: #fef2f2;
       border-radius: 6px;
     }
+
+    /* ===== 絞り込みバー ===== */
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .filter-row label {
+      font-size: 0.85rem;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+
+    #filter-priority {
+      padding: 6px 10px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    #filter-priority:focus { outline: none; border-color: #6366f1; }
 
     /* ===== TODO リスト ===== */
     #todo-list {
@@ -138,20 +163,37 @@
       word-break: break-all;
     }
 
-    /* 優先度ラベル */
-    .priority-badge {
-      font-size: 0.75rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: #f3f4f6;
-      color: #6b7280;
-      font-weight: 600;
-    }
-
     .todo-item.completed .todo-title {
       text-decoration: line-through;
       color: #9ca3af;
     }
+
+    /* 優先度バッジ（カラーコード付き） */
+    .priority-badge {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .priority-badge.p1 { background: #fee2e2; color: #b91c1c; }  /* 高 */
+    .priority-badge.p2 { background: #fef9c3; color: #a16207; }  /* 中 */
+    .priority-badge.p3 { background: #dcfce7; color: #15803d; }  /* 低 */
+
+    /* インライン優先度変更セレクト */
+    .priority-select {
+      padding: 3px 6px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      background: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .priority-select:focus { outline: none; border-color: #6366f1; }
 
     /* 削除ボタン */
     .delete-btn {
@@ -164,6 +206,7 @@
       border-radius: 4px;
       transition: color .2s, background .2s;
       line-height: 1;
+      flex-shrink: 0;
     }
 
     .delete-btn:hover { color: #dc2626; background: #fef2f2; }
@@ -187,9 +230,9 @@
     <div class="input-controls">
       <input id="new-title" type="text" placeholder="やることを入力…" maxlength="200" />
       <select id="new-priority">
-        <option value="0">優先度: 低</option>
-        <option value="1">優先度: 中</option>
-        <option value="2">優先度: 高</option>
+        <option value="1">高</option>
+        <option value="2" selected>中</option>
+        <option value="3">低</option>
       </select>
     </div>
     <button id="add-btn">追加</button>
@@ -198,16 +241,31 @@
   <!-- エラーメッセージ表示エリア -->
   <div id="error-msg"></div>
 
+  <!-- 絞り込みバー -->
+  <div class="filter-row">
+    <label for="filter-priority">絞り込み：</label>
+    <select id="filter-priority">
+      <option value="">すべて</option>
+      <option value="1">高</option>
+      <option value="2">中</option>
+      <option value="3">低</option>
+    </select>
+  </div>
+
   <!-- TODO 一覧 -->
   <ul id="todo-list"></ul>
   <p id="empty-msg" style="display:none;">TODO がありません。追加してみましょう！</p>
 </div>
 
 <script>
+  // ===== 定数 =====
+  const PRIORITY_LABEL = { 1: '高', 2: '中', 3: '低' };
+
   // ===== DOM 参照 =====
   const listEl     = document.getElementById('todo-list');
   const inputEl    = document.getElementById('new-title');
-  const priorityEl = document.getElementById('new-priority'); // 追加
+  const priorityEl = document.getElementById('new-priority');
+  const filterEl   = document.getElementById('filter-priority');
   const addBtn     = document.getElementById('add-btn');
   const errorEl    = document.getElementById('error-msg');
   const emptyEl    = document.getElementById('empty-msg');
@@ -228,7 +286,10 @@
 
   // ===== 全件取得して画面に描画する =====
   async function fetchAndRender() {
-    const res = await fetch('/todos');
+    const priority = filterEl.value;
+    const url = priority ? `/todos?priority=${priority}` : '/todos';
+
+    const res = await fetch(url);
     if (!res.ok) { showError('TODO の取得に失敗しました'); return; }
     const todos = await res.json();
 
@@ -255,11 +316,26 @@
     span.className = 'todo-title';
     span.textContent = todo.title;
 
-    // 優先度ラベル表示（追加）
-    const pBadge = document.createElement('span');
-    pBadge.className = 'priority-badge';
-    const pMap = { 0: '低', 1: '中', 2: '高' };
-    pBadge.textContent = pMap[todo.priority] || '低';
+    // 優先度バッジ（カラーコード付き）
+    const badge = document.createElement('span');
+    badge.className = `priority-badge p${todo.priority}`;
+    badge.textContent = PRIORITY_LABEL[todo.priority] ?? '中';
+
+    // インライン優先度変更セレクト
+    const pSelect = document.createElement('select');
+    pSelect.className = 'priority-select';
+    pSelect.setAttribute('aria-label', '優先度を変更');
+    pSelect.dataset.prevPriority = todo.priority;
+    [1, 2, 3].forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = PRIORITY_LABEL[v];
+      if (v === todo.priority) opt.selected = true;
+      pSelect.appendChild(opt);
+    });
+    pSelect.addEventListener('change', () =>
+      changePriority(todo.id, Number(pSelect.value), badge, pSelect)
+    );
 
     // 削除ボタン
     const delBtn = document.createElement('button');
@@ -268,14 +344,14 @@
     delBtn.setAttribute('aria-label', '削除');
     delBtn.addEventListener('click', () => deleteTodo(todo.id, li));
 
-    li.append(checkbox, span, pBadge, delBtn); // pBadge を追加
+    li.append(checkbox, span, badge, pSelect, delBtn);
     listEl.appendChild(li);
   }
 
   // ===== 新規 TODO を追加する =====
   async function addTodo() {
     const title = inputEl.value.trim();
-    const priority = parseInt(priorityEl.value, 10); // 優先度を取得
+    const priority = parseInt(priorityEl.value, 10);
 
     if (!title) { showError('タイトルを入力してください'); return; }
     clearError();
@@ -285,7 +361,7 @@
       const res = await fetch('/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, priority }), // priority を含める
+        body: JSON.stringify({ title, priority }),
       });
 
       if (!res.ok) {
@@ -295,10 +371,16 @@
       }
 
       const todo = await res.json();
-      renderItem(todo);
       inputEl.value = '';
-      priorityEl.value = "0"; // リセット
-      updateEmptyState();
+      priorityEl.value = '2';
+
+      // フィルター中かつ追加アイテムが対象外なら再描画のみ
+      if (filterEl.value && String(todo.priority) !== filterEl.value) {
+        await fetchAndRender();
+      } else {
+        renderItem(todo);
+        updateEmptyState();
+      }
     } finally {
       addBtn.disabled = false;
     }
@@ -320,6 +402,33 @@
     liEl.classList.toggle('completed', completed);
   }
 
+  // ===== 優先度を変更する =====
+  async function changePriority(id, priority, badgeEl, selectEl) {
+    const prevPriority = Number(selectEl.dataset.prevPriority);
+
+    const res = await fetch(`/todos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority }),
+    });
+
+    if (!res.ok) {
+      showError('優先度の更新に失敗しました');
+      // 失敗時は元の値に戻す
+      selectEl.value = prevPriority;
+      return;
+    }
+
+    selectEl.dataset.prevPriority = priority;
+    badgeEl.className = `priority-badge p${priority}`;
+    badgeEl.textContent = PRIORITY_LABEL[priority];
+
+    // フィルター中かつ変更後が対象外になった場合は再描画
+    if (filterEl.value && String(priority) !== filterEl.value) {
+      await fetchAndRender();
+    }
+  }
+
   // ===== TODO を削除する =====
   async function deleteTodo(id, liEl) {
     const res = await fetch(`/todos/${id}`, { method: 'DELETE' });
@@ -330,10 +439,9 @@
 
   // ===== イベント登録 =====
   addBtn.addEventListener('click', addTodo);
-  inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addTodo();
-  });
+  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') addTodo(); });
   inputEl.addEventListener('input', clearError);
+  filterEl.addEventListener('change', fetchAndRender);
 
   // ===== 初期表示 =====
   fetchAndRender();

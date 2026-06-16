@@ -31,12 +31,11 @@ my-claude-project/
 │   │   └── todos.js          # /todos の CRUD ルーター（GET/POST/PATCH/DELETE）
 │   └── db/
 │       ├── pool.js           # PostgreSQL 接続プール（pg.Pool）のシングルトン
-│       └── init.sql          # todos テーブル初期化 SQL（手動実行用）
+│       └── init.sql          # todos テーブル初期化 SQL（新規 DB セットアップ用）
 ├── public/
 │   └── index.html            # フロントエンド SPA。fetch API で /todos を呼び出す
-├── db/
-│   └── migrations/
-│       └── 001_create_todos.sql  # todos テーブル + updated_at 自動更新トリガー
+├── migrations/
+│   └── 001_add_priority_to_todos.sql  # priority カラム追加マイグレーション
 ├── tests/
 │   ├── backend/              # testEnvironment: node — Express ルーターの統合テスト
 │   ├── frontend/             # testEnvironment: jsdom — UI ロジックの単体テスト
@@ -79,12 +78,13 @@ Router → Express → ブラウザ
 ## 5. API エンドポイント一覧
 
 ### GET /todos
-全件取得。クエリパラメータで完了状態フィルタが可能。
+全件取得。クエリパラメータで完了状態・優先度フィルタが可能（複数同時指定は AND 条件）。
 
 | 項目 | 内容 |
 |------|------|
-| クエリパラメータ | `?completed=true` / `?completed=false`（省略時は全件） |
-| レスポンス 200 | `[{ id, title, completed, created_at, updated_at }, ...]` |
+| クエリパラメータ | `?completed=true\|false`（省略時は全件）<br>`?priority=1\|2\|3`（省略時は全件） |
+| レスポンス 200 | `[{ id, title, completed, priority, created_at, updated_at }, ...]` |
+| レスポンス 400 | `{ error: "priority は 1, 2, 3 のいずれかである必要があります" }` |
 
 ---
 
@@ -94,7 +94,7 @@ Router → Express → ブラウザ
 | 項目 | 内容 |
 |------|------|
 | パスパラメータ | `id` — 正の整数 |
-| レスポンス 200 | `{ id, title, completed, created_at, updated_at }` |
+| レスポンス 200 | `{ id, title, completed, priority, created_at, updated_at }` |
 | レスポンス 400 | `{ error: "無効な ID です" }` |
 | レスポンス 404 | `{ error: "指定された TODO が見つかりません" }` |
 
@@ -105,20 +105,21 @@ Router → Express → ブラウザ
 
 | 項目 | 内容 |
 |------|------|
-| リクエストボディ | `{ "title": "文字列（必須）" }` |
-| レスポンス 201 | `{ id, title, completed, created_at, updated_at }` |
-| レスポンス 400 | `{ error: "title は必須です" }` |
+| リクエストボディ | `{ "title": "文字列（必須）", "priority"?: 1\|2\|3 }` |
+| `priority` 省略時 | デフォルト `2`（中）が設定される |
+| レスポンス 201 | `{ id, title, completed, priority, created_at, updated_at }` |
+| レスポンス 400 | `{ error: "title は必須です" }` / `{ error: "priority は 1, 2, 3 のいずれかである必要があります" }` |
 
 ---
 
 ### PATCH /todos/:id
-title・completed を部分更新。両方省略はエラー。
+title・completed・priority を部分更新。すべて省略はエラー。
 
 | 項目 | 内容 |
 |------|------|
 | パスパラメータ | `id` — 正の整数 |
-| リクエストボディ | `{ "title"?: "文字列", "completed"?: true/false }` |
-| レスポンス 200 | `{ id, title, completed, created_at, updated_at }` |
+| リクエストボディ | `{ "title"?: "文字列", "completed"?: true\|false, "priority"?: 1\|2\|3 }` |
+| レスポンス 200 | `{ id, title, completed, priority, created_at, updated_at }` |
 | レスポンス 400 | バリデーションエラー詳細 |
 | レスポンス 404 | `{ error: "指定された TODO が見つかりません" }` |
 
@@ -145,6 +146,7 @@ CREATE TABLE todos (
   id         BIGSERIAL   PRIMARY KEY,
   title      TEXT        NOT NULL,
   completed  BOOLEAN     NOT NULL DEFAULT false,
+  priority   INTEGER     NOT NULL DEFAULT 2,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -155,10 +157,18 @@ CREATE TABLE todos (
 | `id` | BIGSERIAL | PRIMARY KEY | 自動採番の一意識別子 |
 | `title` | TEXT | NOT NULL | TODO のタイトル。空文字はアプリ層で拒否 |
 | `completed` | BOOLEAN | NOT NULL, DEFAULT false | 完了フラグ。未完了は false |
+| `priority` | INTEGER | NOT NULL, DEFAULT 2 | 優先度。`1`=高 / `2`=中 / `3`=低。1・2・3 以外はアプリ層で拒否 |
 | `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | レコード作成日時（タイムゾーン付き） |
 | `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | 最終更新日時。UPDATE 時にトリガーで自動更新 |
 
-`db/migrations/001_create_todos.sql` には `updated_at` を UPDATE のたびに `NOW()` に書き換える PostgreSQL トリガー（`todos_updated_at`）も含まれている。
+`updated_at` は UPDATE のたびに `NOW()` に書き換える PostgreSQL トリガー（`todos_updated_at`）で自動更新される。
+
+### マイグレーション履歴
+
+| ファイル | 内容 |
+|----------|------|
+| `src/db/init.sql` | 新規 DB セットアップ用。テーブル定義をフルで含む |
+| `migrations/001_add_priority_to_todos.sql` | 既存 DB への `priority` カラム追加（`ALTER TABLE`） |
 
 ---
 
@@ -195,10 +205,11 @@ npm install
 cp .env.example .env   # テンプレートがある場合
 # DB_HOST / DB_NAME / DB_USER / DB_PASSWORD を環境に合わせて変更
 
-# 3. データベース・テーブルを作成
+# 3. データベース・テーブルを作成（新規セットアップの場合）
 psql -U todo_user -d todo_db -f src/db/init.sql
-# または マイグレーションファイルを使用
-psql -U todo_user -d todo_db -f db/migrations/001_create_todos.sql
+
+# 既存 DB に priority カラムを追加する場合（マイグレーション）
+psql -U todo_user -d todo_db -f migrations/001_add_priority_to_todos.sql
 
 # 4. 開発サーバを起動（ファイル変更で自動リロード）
 npm run dev

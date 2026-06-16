@@ -159,7 +159,7 @@ describe('TODO の追加', () => {
     // Assert
     expect(fetchMock).toHaveBeenCalledWith('/todos', expect.objectContaining({
       method: 'POST',
-      body:   JSON.stringify({ title: '新タスク' }),
+      body:   JSON.stringify({ title: '新タスク', priority: 2 }),
     }));
   });
 

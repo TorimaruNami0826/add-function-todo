@@ -3,18 +3,32 @@ const pool = require('../db/pool');
 
 const router = Router();
 
-// GET /todos — 全件取得（id 昇順）
+const VALID_PRIORITIES = [1, 2, 3];
+
+// GET /todos — 全件取得（id 昇順）。?completed=true / ?priority=1 で絞り込み可
 router.get('/', async (req, res) => {
   try {
-    // priority を取得対象に追加
     let text = 'SELECT id, title, completed, priority, created_at, updated_at FROM todos';
     const values = [];
+    const conditions = [];
 
     if (req.query.completed !== undefined) {
       values.push(req.query.completed === 'true');
-      text += ' WHERE completed = $1';
+      conditions.push(`completed = $${values.length}`);
     }
 
+    if (req.query.priority !== undefined) {
+      const p = Number(req.query.priority);
+      if (!VALID_PRIORITIES.includes(p)) {
+        return res.status(400).json({ error: 'priority は 1, 2, 3 のいずれかである必要があります' });
+      }
+      values.push(p);
+      conditions.push(`priority = $${values.length}`);
+    }
+
+    if (conditions.length > 0) {
+      text += ' WHERE ' + conditions.join(' AND ');
+    }
     text += ' ORDER BY id';
 
     const { rows } = await pool.query(text, values);
@@ -57,10 +71,10 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'title は必須です' });
   }
 
-  // priority のバリデーション（数値であること）
-  const taskPriority = priority !== undefined ? Number(priority) : 0;
-  if (isNaN(taskPriority)) {
-    return res.status(400).json({ error: 'priority は数値である必要があります' });
+  // priority のバリデーション（省略時はデフォルト 2、範囲外は 400）
+  const taskPriority = priority !== undefined ? Number(priority) : 2;
+  if (!VALID_PRIORITIES.includes(taskPriority)) {
+    return res.status(400).json({ error: 'priority は 1, 2, 3 のいずれかである必要があります' });
   }
 
   try {
@@ -93,8 +107,8 @@ router.patch('/:id', async (req, res) => {
   if (completed !== undefined && typeof completed !== 'boolean') {
     return res.status(400).json({ error: 'completed は boolean である必要があります' });
   }
-  if (priority !== undefined && isNaN(Number(priority))) {
-    return res.status(400).json({ error: 'priority は数値である必要があります' });
+  if (priority !== undefined && !VALID_PRIORITIES.includes(Number(priority))) {
+    return res.status(400).json({ error: 'priority は 1, 2, 3 のいずれかである必要があります' });
   }
   if (title === undefined && completed === undefined && priority === undefined) {
     return res.status(400).json({ error: '更新するフィールドがありません' });

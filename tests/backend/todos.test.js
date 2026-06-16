@@ -81,8 +81,8 @@ describe('POST /todos', () => {
     // Assert
     expect(res.status).toBe(201);
     expect(res.body.title).toBe('タスク');
-    // トリム済みの値がパラメータとして渡されていること
-    expect(pool.query).toHaveBeenCalledWith(expect.any(String), ['タスク']);
+    // トリム済みタイトルとデフォルト priority がパラメータとして渡されていること
+    expect(pool.query).toHaveBeenCalledWith(expect.any(String), ['タスク', 2]);
   });
 
   test('title が未指定の場合 400 を返す', async () => {
